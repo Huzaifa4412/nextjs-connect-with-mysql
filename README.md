@@ -1,51 +1,11 @@
-# Next.js with MySQL2 Connection Tutorial
+# Next.js MySQL Connection Tutorial
 
-This repository demonstrates how to connect a Next.js application to a MySQL database using the `mysql2` package. This is a step-by-step tutorial covering database connection, configuration, and basic operations.
-
-## Features
-
-- Next.js 14+ with App Router
-- MySQL database integration using `mysql2`
-- Environment configuration for database credentials
-- Basic database operations (SELECT, INSERT, UPDATE, DELETE)
-- Connection pooling for better performance
-- Error handling for database operations
-
-## Prerequisites
-
-- Node.js 18+
-- MySQL Server
-- A MySQL database with appropriate credentials
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app), demonstrating how to connect to a MySQL database using mysql2.
 
 ## Getting Started
 
-1. Clone the repository:
-```bash
-git clone https://github.com/Huzaifa4412/nextjs-connect-with-mysql.git
-cd nextjs-connect-with-mysql
-```
+First, run the development server:
 
-2. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-# or
-bun install
-```
-
-3. Set up your MySQL database and create a `.env.local` file with your database credentials:
-```env
-DB_HOST=localhost
-DB_USER=your_username
-DB_PASSWORD=your_password
-DB_NAME=your_database_name
-DB_PORT=3306
-```
-
-4. Run the development server:
 ```bash
 npm run dev
 # or
@@ -56,38 +16,87 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Project Structure
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Urbanist](https://fonts.google.com/specimen/Urbanist) and [Poppins](https://fonts.google.com/specimen/Poppins) fonts. It also uses [Tailwind CSS](https://tailwindcss.com) for styling.
+
+## Connecting to MySQL
+
+This tutorial shows how to connect your Next.js application to a MySQL database using the mysql2 library.
+
+### Prerequisites
+
+-   Node.js installed
+
+-   MySQL server running
+
+-   A MySQL database created
+
+### Installation
+
+Install the mysql2 package:
+
+```bash
+npm install mysql2
+```
+
+### Environment Variables
+
+Create a `.env.local` file in the root directory and add your database credentials:
 
 ```
-src/
-├── app/
-│   ├── api/
-│   │   └── db/           # Database connection examples
-│   ├── components/       # Reusable components
-│   └── lib/              # Database utilities
-└── pages/                # Additional pages if needed
+DB_HOST=localhost
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=your_database_name
+DB_PORT=3306
 ```
 
-## Key Components
+### Creating a Database Connection
 
-- `src/lib/db.js`: Database connection configuration using mysql2
-- `src/app/api/db/route.js`: Example API routes demonstrating database operations
-- `.env.local`: Environment variables for database configuration
+Create a file `lib/db.js` (or `lib/db.ts` for TypeScript) with the following content:
+
+```javascript
+import mysql from "mysql2/promise";
+
+const db = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT,
+});
+
+export default db;
+```
+
+### Using the Connection
+
+You can now use the `db` object to execute queries in your API routes or server components.
+
+Example in an API route (`app/api/example/route.js`):
+
+```javascript
+import db from "../../../lib/db";
+import { NextResponse } from "next/server";
+
+export async function GET() {
+    try {
+        const [rows] = await db.execute("SELECT * FROM your_table");
+        return NextResponse.json(rows);
+    } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+```
 
 ## Learn More
 
-To learn more about Next.js and MySQL integration:
+To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [mysql2 Documentation](https://www.npmjs.com/package/mysql2) - official mysql2 package documentation
-- [MySQL Documentation](https://dev.mysql.com/doc/) - official MySQL documentation
+-   [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+-   [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
