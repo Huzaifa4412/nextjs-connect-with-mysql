@@ -47,11 +47,6 @@ npm install mysql2
 Create a `.env.local` file in the root directory and add your MySQL credentials:
 
 ```env
-DATABASE_URL="mysql://username:password@localhost:3306/database_name"
-```
-
-**Note:** For local development, you can also use individual variables:
-```env
 DB_HOST=localhost
 DB_USERNAME=your_mysql_username
 DB_PASSWORD=your_mysql_password
@@ -70,8 +65,10 @@ const globalForMySQL = global as unknown as {
 }
 
 export const pool = globalForMySQL.mysqlPool ?? mysql.createPool({
-  uri: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  host: process.env.DB_HOST,
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE
 })
 
 if (process.env.NODE_ENV !== "production") {
@@ -83,7 +80,6 @@ if (process.env.NODE_ENV !== "production") {
 - We use `mysql2/promise` for Promise-based queries (better with async/await)
 - The pool is cached in `global` to avoid recreating it in development
 - Connection pooling improves performance by reusing connections
-- `ssl` option is required for cloud databases (PlanetScale, etc.)
 
 ### Step 4: Create Database Table
 
@@ -310,57 +306,3 @@ try {
 -   [Next.js Data Fetching](https://nextjs.org/docs/app/building-your-application/data-fetching) - Data fetching patterns
 -   [MySQL Documentation](https://dev.mysql.com/doc/) - MySQL database reference
 -   [SQL Injection Prevention](https://owasp.org/www-community/attacks/SQL_Injection) - Security best practices
-
-## Deployment
-
-### Deploy to Vercel with PlanetScale (MySQL)
-
-This project can be deployed to Vercel with PlanetScale for MySQL hosting. Here's how:
-
-#### 1. Create a PlanetScale Database
-
-1. Go to [PlanetScale](https://planetscale.com/) and sign up (free tier available)
-2. Create a new database (e.g., `todo-app-nextjs`)
-3. Create a password for the database
-4. Get your connection string from the dashboard:
-   ```
-   mysql://user:password@host/dbname?sslaccept=strict
-   ```
-
-#### 2. Create the Database Schema
-
-In the PlanetScale dashboard, open the console and run:
-
-```sql
-CREATE TABLE todos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  task VARCHAR(255) NOT NULL,
-  completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  priority ENUM('low', 'medium', 'high') DEFAULT 'medium'
-);
-```
-
-#### 3. Deploy to Vercel
-
-1. Go to [Vercel](https://vercel.com) and sign up/login
-2. Click **"Add New"** → **"Project"**
-3. Import your GitHub repository
-4. Add environment variables:
-   | Name | Value |
-   |------|-------|
-   | `DATABASE_URL` | Your PlanetScale connection string |
-   | `NODE_ENV` | `production` |
-5. Click **"Deploy"**
-
-Vercel will automatically build and deploy your application.
-
-#### Alternative MySQL Hosting Options
-
-| Provider | Free Tier | Notes |
-|----------|-----------|-------|
-| [PlanetScale](https://planetscale.com/) | Yes (5GB) | Best for Vercel, excellent integration |
-| [Railway](https://railway.app/) | $5 credit | Simple, supports MySQL |
-| [Aiven](https://aiven.io/) | Yes (1GB) | Managed MySQL hosting |
-
-> **Important:** When using cloud MySQL, the `ssl` option in `src/config/db.ts` is required for secure connections.
