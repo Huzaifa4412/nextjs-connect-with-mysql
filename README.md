@@ -1,102 +1,308 @@
-# Next.js MySQL Connection Tutorial
+# Next.js + MySQL2 Connection Tutorial
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app), demonstrating how to connect to a MySQL database using mysql2.
+A complete tutorial project demonstrating how to connect [MySQL](https://www.mysql.com/) with [Next.js](https://nextjs.org) using the [mysql2](https://www.npmjs.com/package/mysql2) package. This project includes a functional todo application that showcases database integration, server actions, and connection pooling.
 
-## Getting Started
+## What You'll Learn
 
-First, run the development server:
+This tutorial covers:
+- Setting up MySQL2 with Next.js App Router
+- Creating a database connection pool
+- Implementing CRUD operations with Server Actions
+- Using TypeScript types for database records
+- Managing database migrations
+- Handling connection lifecycle properly
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+-   ✅ Create, read, update, and delete todos
+-   🏷️ Priority levels (low, medium, high) for each todo
+-   🔍 Filter todos by status (all, active, completed) or priority
+-   ⚡ Optimistic UI updates for instant feedback
+-   🎨 Beautiful, responsive design with Tailwind CSS
+-   🔄 Real-time data synchronization with server actions
+-   📱 Mobile-friendly interface
+-   🌐 Server-side rendering with Next.js App Router
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Urbanist](https://fonts.google.com/specimen/Urbanist) and [Poppins](https://fonts.google.com/specimen/Poppins) fonts. It also uses [Tailwind CSS](https://tailwindcss.com) for styling.
+-   **Framework**: [Next.js 16](https://nextjs.org/) with App Router
+-   **Language**: [TypeScript](https://www.typescriptlang.org/)
+-   **Database**: [MySQL](https://www.mysql.com/) with [mysql2](https://www.npmjs.com/package/mysql2)
+-   **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+-   **Icons**: [Lucide React](https://lucide.dev/)
+-   **Animations**: [Motion](https://motion.dev/)
 
-## Connecting to MySQL
+## Tutorial Steps
 
-This tutorial shows how to connect your Next.js application to a MySQL database using the mysql2 library.
+### Step 1: Install Dependencies
 
-### Prerequisites
-
--   Node.js installed
-
--   MySQL server running
-
--   A MySQL database created
-
-### Installation
-
-Install the mysql2 package:
+Install the required packages including `mysql2` for database connectivity:
 
 ```bash
 npm install mysql2
 ```
 
-### Environment Variables
+### Step 2: Configure Environment Variables
 
-Create a `.env.local` file in the root directory and add your database credentials:
+Create a `.env.local` file in the root directory and add your MySQL credentials:
 
-```
+```env
 DB_HOST=localhost
-DB_USER=your_username
-DB_PASSWORD=your_password
-DB_NAME=your_database_name
-DB_PORT=3306
+DB_USERNAME=your_mysql_username
+DB_PASSWORD=your_mysql_password
+DB_DATABASE=your_database_name
 ```
 
-### Creating a Database Connection
+### Step 3: Set Up Database Connection Pool
 
-Create a file `lib/db.js` (or `lib/db.ts` for TypeScript) with the following content:
+Create `src/config/db.ts` to configure the MySQL connection pool. Using a pool is more efficient than creating a new connection for each query:
 
-```javascript
-import mysql from "mysql2/promise";
+```typescript
+import mysql from "mysql2/promise"
 
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
-});
+const globalForMySQL = global as unknown as {
+  mysqlPool?: mysql.Pool;
+}
 
-export default db;
-```
+export const pool = globalForMySQL.mysqlPool ?? mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE
+})
 
-### Using the Connection
-
-You can now use the `db` object to execute queries in your API routes or server components.
-
-Example in an API route (`app/api/example/route.js`):
-
-```javascript
-import db from "../../../lib/db";
-import { NextResponse } from "next/server";
-
-export async function GET() {
-    try {
-        const [rows] = await db.execute("SELECT * FROM your_table");
-        return NextResponse.json(rows);
-    } catch (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+if (process.env.NODE_ENV !== "production") {
+  globalForMySQL.mysqlPool = pool;
 }
 ```
 
+**Key Points:**
+- We use `mysql2/promise` for Promise-based queries (better with async/await)
+- The pool is cached in `global` to avoid recreating it in development
+- Connection pooling improves performance by reusing connections
+
+### Step 4: Create Database Table
+
+Run this SQL command in your MySQL database:
+
+```sql
+CREATE TABLE todos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task VARCHAR(255) NOT NULL,
+  completed BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  priority ENUM('low', 'medium', 'high') DEFAULT 'medium'
+);
+```
+
+Or use the provided migration script:
+
+```bash
+npx tsx scripts/migrate.ts
+```
+
+### Step 5: Define TypeScript Types
+
+Create `src/components/todo/types.ts` for type safety:
+
+```typescript
+export type Priority = "low" | "medium" | "high";
+
+export interface Todo {
+  id: number;
+  task: string;
+  completed: boolean;
+  created_at: Date;
+  priority: Priority;
+}
+```
+
+### Step 6: Create Database Operations (Server Actions)
+
+Create `src/lib/db.ts` with CRUD operations using Next.js Server Actions:
+
+```typescript
+"use server";
+
+import { pool } from "@/config/db";
+import { revalidatePath } from "next/cache";
+
+// Read all todos
+export async function getData() {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(
+      'SELECT * FROM todos ORDER BY created_at DESC'
+    );
+    return rows as Todo[];
+  } finally {
+    connection.release();
+  }
+}
+
+// Create a new todo
+export async function createTodo(task: string, priority: Priority) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.execute(
+      'INSERT INTO todos (task, priority) VALUES (?, ?)',
+      [task, priority]
+    );
+    revalidatePath("/");
+  } finally {
+    connection.release();
+  }
+}
+
+// Update todo status
+export async function updateTodo(id: number, completed: boolean) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.execute(
+      'UPDATE todos SET completed = ? WHERE id = ?',
+      [completed, id]
+    );
+    revalidatePath("/");
+  } finally {
+    connection.release();
+  }
+}
+
+// Delete a todo
+export async function deleteTodo(id: number) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.execute(
+      'DELETE FROM todos WHERE id = ?',
+      [id]
+    );
+    revalidatePath("/");
+  } finally {
+    connection.release();
+  }
+}
+```
+
+**Key Points:**
+- `"use server"` marks these as Server Actions
+- Always use `try/finally` to ensure connections are released
+- Use parameterized queries (`?`) to prevent SQL injection
+- `revalidatePath()` refreshes the cached data
+
+### Step 7: Use in Your Page
+
+In `src/app/page.tsx`, fetch and display data:
+
+```typescript
+import { getData } from "@/lib/db";
+
+export default async function Home() {
+  const todos = await getData();
+
+  return (
+    <main>
+      {/* Render your todos here */}
+    </main>
+  );
+}
+```
+
+### Step 8: Run the Development Server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to see your application.
+
+## Project Structure
+
+```
+├── src/
+│   ├── app/
+│   │   ├── globals.css      # Global styles
+│   │   ├── layout.tsx       # Root layout component
+│   │   └── page.tsx         # Home page with server-side data fetching
+│   ├── components/
+│   │   ├── todo/            # Todo-related components
+│   │   │   ├── TodoContainer.tsx
+│   │   │   ├── TodoFilters.tsx
+│   │   │   ├── TodoHeader.tsx
+│   │   │   ├── TodoInput.tsx
+│   │   │   ├── TodoItem.tsx
+│   │   │   ├── TodoList.tsx
+│   │   │   └── types.ts     # TypeScript interfaces
+│   │   └── ui/              # Reusable UI components
+│   ├── config/
+│   │   └── db.ts            # Database connection pool configuration
+│   └── lib/
+│       ├── db.ts            # Server actions for CRUD operations
+│       ├── fonts.ts         # Font configuration
+│       └── utils.ts         # Utility functions
+├── scripts/
+│   └── migrate.ts           # Database migration script
+├── .env.local               # Environment variables (create this)
+└── package.json             # Project dependencies
+```
+
+## Key Concepts
+
+### Connection Pooling
+
+Instead of creating a new connection for every query, we use a connection pool. This is more efficient because:
+- Connections are reused across requests
+- The pool manages connection limits
+- Automatic connection recovery
+
+### Server Actions
+
+Server Actions allow you to run server code directly from your components without creating API routes. They:
+- Provide type safety with TypeScript
+- Automatically handle form submissions
+- Support progressive enhancement
+
+### Parameterized Queries
+
+Always use parameterized queries (the `?` placeholders) to prevent SQL injection attacks:
+
+```typescript
+// ✅ Safe - parameterized query
+await connection.execute(
+  'SELECT * FROM todos WHERE id = ?', [id]
+);
+
+// ❌ Unsafe - vulnerable to SQL injection
+await connection.execute(
+  `SELECT * FROM todos WHERE id = ${id}`
+);
+```
+
+### Connection Lifecycle
+
+Always release connections back to the pool using `try/finally`:
+
+```typescript
+const connection = await pool.getConnection();
+try {
+  // Your database operations here
+} finally {
+  connection.release(); // Always runs, even if error occurs
+}
+```
+
+## Database Operations Reference
+
+| Operation | Server Action | Description |
+|-----------|---------------|-------------|
+| Read | `getData()` | Fetch all todos ordered by creation date |
+| Create | `createTodo(task, priority)` | Insert a new todo item |
+| Update | `updateTodo(id, completed)` | Toggle completion status |
+| Delete | `deleteTodo(id)` | Remove a todo item |
+
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
--   [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
--   [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+-   [mysql2 Documentation](https://www.npmjs.com/package/mysql2) - MySQL client for Node.js
+-   [Next.js Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations) - Learn about Server Actions
+-   [Next.js Data Fetching](https://nextjs.org/docs/app/building-your-application/data-fetching) - Data fetching patterns
+-   [MySQL Documentation](https://dev.mysql.com/doc/) - MySQL database reference
+-   [SQL Injection Prevention](https://owasp.org/www-community/attacks/SQL_Injection) - Security best practices
