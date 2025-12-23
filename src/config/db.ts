@@ -5,10 +5,8 @@ const globalForMySQL = global as unknown as {
 }
 
 export const pool = globalForMySQL.mysqlPool ?? mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE
+    uri: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
 })
 
 
